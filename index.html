@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>나만의 맞춤법 사전</title>
+
+<!-- iOS: 홈 화면에 추가했을 때 앱처럼 동작하도록 -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="맞춤법 사전">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#2f5d50">
+
+<!-- 홈 화면 아이콘 (외부 파일 없이 SVG를 직접 내장) -->
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='36' fill='%232f5d50'/%3E%3Ctext x='90' y='118' font-family='-apple-system,Helvetica,Arial,sans-serif' font-size='90' font-weight='700' fill='%23ffffff' text-anchor='middle'%3E가%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='36' fill='%232f5d50'/%3E%3Ctext x='90' y='118' font-family='-apple-system,Helvetica,Arial,sans-serif' font-size='90' font-weight='700' fill='%23ffffff' text-anchor='middle'%3E가%3C/text%3E%3C/svg%3E">
+
+<!-- PWA manifest (인라인, 크롬 설치 지원용) -->
+<link rel="manifest" id="manifest-link">
+
+<style>
+  :root {
+    --bg: #faf9f7;
+    --ink: #1f1d1a;
+    --muted: #8a8478;
+    --line: #e4e0d8;
+    --accent: #2f5d50;
+    --accent-soft: #e7efec;
+    --danger: #b3543f;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: var(--bg);
+  }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+    color: var(--ink);
+  }
+  #app {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: max(28px, env(safe-area-inset-top)) 20px 40px;
+    min-height: 100%;
+  }
+  .header { margin-bottom: 22px; }
+  .header h1 {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0 0 4px;
+    letter-spacing: -0.01em;
+  }
+  .header p {
+    font-size: 13px;
+    color: var(--muted);
+    margin: 0;
+  }
+  .tabs {
+    display: flex;
+    gap: 4px;
+    background: var(--accent-soft);
+    padding: 4px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+  }
+  .tab {
+    flex: 1;
+    padding: 9px 0;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 600;
+    border: none;
+    border-radius: 7px;
+    background: transparent;
+    color: var(--accent);
+    cursor: pointer;
+  }
+  .tab.active { background: var(--accent); color: #fff; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .field { margin-bottom: 12px; }
+  .field label {
+    display: block;
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .field input, .field textarea {
+    width: 100%;
+    padding: 11px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 16px;
+    font-family: inherit;
+    background: #fff;
+    color: var(--ink);
+    outline: none;
+  }
+  .field input:focus, .field textarea:focus { border-color: var(--accent); }
+  .field textarea { resize: vertical; min-height: 60px; }
+
+  .btn {
+    width: 100%;
+    padding: 12px 0;
+    border: none;
+    border-radius: 8px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+  .btn:active { opacity: 0.85; }
+
+  .msg { font-size: 13px; margin-top: 10px; min-height: 18px; }
+  .msg.ok { color: var(--accent); }
+  .msg.err { color: var(--danger); }
+
+  .search-input {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 16px;
+    margin-bottom: 16px;
+    outline: none;
+    background: #fff;
+  }
+  .search-input:focus { border-color: var(--accent); }
+
+  .result-list { display: flex; flex-direction: column; gap: 8px; }
+  .result-item {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px 14px;
+    background: #fff;
+  }
+  .result-word { font-size: 15px; font-weight: 700; margin-bottom: 3px; }
+  .result-note { font-size: 13px; color: var(--muted); line-height: 1.4; }
+  .result-item .del {
+    float: right;
+    font-size: 12px;
+    color: var(--danger);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px 4px;
+  }
+  .empty { text-align: center; color: var(--muted); font-size: 13px; padding: 32px 0; }
+  .count { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+
+  .sync-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 16px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: var(--accent-soft);
+  }
+  .sync-status { font-size: 12px; color: var(--accent); }
+  .sync-status.err { color: var(--danger); }
+  .sync-btn {
+    border: none;
+    background: none;
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 4px 6px;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <h1>나만의 맞춤법 사전</h1>
+    <p>내가 저장한 단어와 표기를 관리하는 개인 도구</p>
+  </div>
+
+  <div class="sync-bar">
+    <span class="sync-status" id="sync-status">동기화 대기 중...</span>
+    <button class="sync-btn" id="sync-btn">지금 동기화</button>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="search">단어 검색</button>
+    <button class="tab" data-tab="add">단어 추가</button>
+  </div>
+
+  <div class="panel" id="panel-add">
+    <div class="field">
+      <label>단어 / 표기</label>
+      <input type="text" id="word-input" placeholder="예: 되어요">
+    </div>
+    <div class="field">
+      <label>메모 (선택)</label>
+      <textarea id="note-input" placeholder="예: '돼요'가 아니라 '되어요'의 준말"></textarea>
+    </div>
+    <button class="btn" id="add-btn">저장하기</button>
+    <div class="msg" id="add-msg"></div>
+  </div>
+
+  <div class="panel active" id="panel-search">
+    <input class="search-input" id="search-input" placeholder="단어 또는 메모로 검색">
+    <div id="search-results"></div>
+  </div>
+</div>
+
+<script>
+  const STORAGE_KEY = 'my-spelling-dict-v1';
+
+  function loadWords() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) { return []; }
+  }
+  function saveWords(list) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+  }
+
+  // ---- 클라우드 동기화 (Supabase) ----
+  const SUPABASE_URL = 'https://quwlumqzfiaiywxdpjfj.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_2ufuxnkTWCEtwqJoELEplA_a7evU36Q';
+  const SUPABASE_HEADERS = {
+    apikey: SUPABASE_KEY,
+    Authorization: `Bearer ${SUPABASE_KEY}`,
+  };
+
+  const syncStatusEl = document.getElementById('sync-status');
+  function setSyncStatus(text, isErr) {
+    syncStatusEl.textContent = text;
+    syncStatusEl.className = 'sync-status' + (isErr ? ' err' : '');
+  }
+
+  async function fetchRemoteWords() {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/words?select=word,note,saved_at`, {
+      headers: SUPABASE_HEADERS,
+    });
+    if (!res.ok) throw new Error('fetch failed: ' + res.status);
+    return res.json();
+  }
+
+  async function pushWords(list) {
+    if (list.length === 0) return;
+    const body = list.map(w => ({ word: w.word, note: w.note || '', saved_at: w.savedAt || 0 }));
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/words`, {
+      method: 'POST',
+      headers: {
+        ...SUPABASE_HEADERS,
+        'Content-Type': 'application/json',
+        Prefer: 'resolution=merge-duplicates',
+      },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error('push failed: ' + res.status);
+  }
+
+  async function deleteRemoteWord(word) {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/words?word=eq.${encodeURIComponent(word)}`, {
+      method: 'DELETE',
+      headers: SUPABASE_HEADERS,
+    });
+    if (!res.ok) throw new Error('delete failed: ' + res.status);
+  }
+
+  function mergeWords(local, remote) {
+    const map = {};
+    local.forEach(w => { map[w.word] = w; });
+    remote.forEach(r => {
+      const remoteEntry = { word: r.word, note: r.note || '', savedAt: r.saved_at || 0 };
+      const existing = map[r.word];
+      if (!existing || (remoteEntry.savedAt || 0) >= (existing.savedAt || 0)) {
+        map[r.word] = remoteEntry;
+      }
+    });
+    return Object.values(map);
+  }
+
+  async function syncNow() {
+    setSyncStatus('동기화 중...');
+    try {
+      const local = loadWords();
+      const remote = await fetchRemoteWords();
+      const merged = mergeWords(local, remote);
+      saveWords(merged);
+      await pushWords(merged);
+      renderResults();
+      const now = new Date();
+      setSyncStatus(`마지막 동기화: ${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`);
+    } catch (e) {
+      setSyncStatus('동기화 실패 (인터넷 연결을 확인해 주세요)', true);
+    }
+  }
+
+  document.getElementById('sync-btn').addEventListener('click', syncNow);
+
+  // 탭 전환
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('panel-' + tab.dataset.tab).classList.add('active');
+      if (tab.dataset.tab === 'search') renderResults();
+    });
+  });
+
+  // 단어 추가
+  const wordInput = document.getElementById('word-input');
+  const noteInput = document.getElementById('note-input');
+  const addMsg = document.getElementById('add-msg');
+
+  function addWord() {
+    const word = wordInput.value.trim();
+    const note = noteInput.value.trim();
+    if (!word) {
+      addMsg.textContent = '단어를 입력해 주세요.';
+      addMsg.className = 'msg err';
+      return;
+    }
+    const list = loadWords();
+    const existingIdx = list.findIndex(w => w.word === word);
+    const entry = { word, note, savedAt: Date.now() };
+    if (existingIdx >= 0) {
+      list[existingIdx] = entry;
+    } else {
+      list.push(entry);
+    }
+    saveWords(list);
+    addMsg.textContent = `'${word}' 저장했습니다.`;
+    addMsg.className = 'msg ok';
+    wordInput.value = '';
+    noteInput.value = '';
+    wordInput.focus();
+
+    pushWords([entry]).then(() => {
+      const now = new Date();
+      setSyncStatus(`마지막 동기화: ${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}`);
+    }).catch(() => {
+      setSyncStatus('동기화 실패 (인터넷 연결을 확인해 주세요)', true);
+    });
+  }
+
+  document.getElementById('add-btn').addEventListener('click', addWord);
+  wordInput.addEventListener('keydown', e => { if (e.key === 'Enter') addWord(); });
+
+  // 단어 검색
+  const searchInput = document.getElementById('search-input');
+  const resultsEl = document.getElementById('search-results');
+
+  function renderResults() {
+    const list = loadWords().sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
+    const q = searchInput.value.trim().toLowerCase();
+
+    if (!q) {
+      resultsEl.innerHTML = '<div class="empty">검색어를 입력해 주세요.</div>';
+      return;
+    }
+
+    const stripSpaces = s => s.replace(/\s+/g, '');
+    const qNoSpace = stripSpaces(q);
+    const filtered = list.filter(w =>
+      stripSpaces(w.word.toLowerCase()).includes(qNoSpace) ||
+      (w.note || '').toLowerCase().includes(q)
+    );
+
+    if (filtered.length === 0) {
+      resultsEl.innerHTML = '<div class="empty">검색 결과가 없습니다.</div>';
+      return;
+    }
+    resultsEl.innerHTML =
+      `<div class="count">${filtered.length}개</div><div class="result-list">` +
+      filtered.map(w => `
+        <div class="result-item" data-word="${encodeURIComponent(w.word)}">
+          <button class="del">삭제</button>
+          <div class="result-word"></div>
+          ${w.note ? '<div class="result-note"></div>' : ''}
+        </div>
+      `).join('') +
+      `</div>`;
+
+    // XSS 방지를 위해 텍스트는 별도로 채움
+    const items = resultsEl.querySelectorAll('.result-item');
+    items.forEach((el, i) => {
+      const w = filtered[i];
+      el.querySelector('.result-word').textContent = w.word;
+      const noteEl = el.querySelector('.result-note');
+      if (noteEl) noteEl.textContent = w.note;
+      el.querySelector('.del').addEventListener('click', () => {
+        const list2 = loadWords().filter(x => x.word !== w.word);
+        saveWords(list2);
+        renderResults();
+        deleteRemoteWord(w.word).catch(() => {
+          setSyncStatus('삭제 동기화 실패 (인터넷 연결을 확인해 주세요)', true);
+        });
+      });
+    });
+  }
+
+  searchInput.addEventListener('input', renderResults);
+  renderResults();
+  syncNow();
+
+  // PWA manifest 인라인 생성 (외부 파일 없이 설치 지원)
+  const manifest = {
+    name: '나만의 맞춤법 사전',
+    short_name: '맞춤법 사전',
+    start_url: './index.html',
+    display: 'standalone',
+    background_color: '#faf9f7',
+    theme_color: '#2f5d50',
+    icons: [{
+      src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='36' fill='%232f5d50'/%3E%3Ctext x='90' y='118' font-family='-apple-system,Helvetica,Arial,sans-serif' font-size='90' font-weight='700' fill='%23ffffff' text-anchor='middle'%3E가%3C/text%3E%3C/svg%3E",
+      sizes: '180x180',
+      type: 'image/svg+xml'
+    }]
+  };
+  const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+  document.getElementById('manifest-link').href = URL.createObjectURL(manifestBlob);
+</script>
+</body>
+</html>
