@@ -120,6 +120,17 @@
   .msg { font-size: 13px; margin-top: 10px; min-height: 18px; }
   .msg.ok { color: var(--accent); }
   .msg.err { color: var(--danger); }
+  .msg .undo-btn {
+    border: none;
+    background: none;
+    color: var(--danger);
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0;
+    margin-left: 4px;
+  }
 
   .search-input {
     width: 100%;
@@ -335,11 +346,28 @@
       list.push(entry);
     }
     saveWords(list);
-    addMsg.textContent = `'${word}' 저장했습니다.`;
-    addMsg.className = 'msg ok';
     wordInput.value = '';
     noteInput.value = '';
     wordInput.focus();
+
+    addMsg.className = 'msg ok';
+    addMsg.innerHTML = '';
+    const okText = document.createElement('span');
+    okText.textContent = `'${word}' 저장했습니다.`;
+    const undoBtn = document.createElement('button');
+    undoBtn.className = 'undo-btn';
+    undoBtn.textContent = '삭제';
+    undoBtn.addEventListener('click', () => {
+      const list2 = loadWords().filter(x => x.word !== word);
+      saveWords(list2);
+      addMsg.textContent = `'${word}' 삭제했습니다.`;
+      addMsg.className = 'msg ok';
+      deleteRemoteWord(word).catch(() => {
+        setSyncStatus('삭제 동기화 실패 (인터넷 연결을 확인해 주세요)', true);
+      });
+    });
+    addMsg.appendChild(okText);
+    addMsg.appendChild(undoBtn);
 
     pushWords([entry]).then(() => {
       const now = new Date();
